@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>sse-demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f2f2f2;
+        text-align: center;
+        padding-top: 100px;
+      }
+
+      input[type="text"] {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        width: 250px;
+        font-size: 16px;
+      }
+
+      button {
+        padding: 10px 20px;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      .stop-btn {
+        background-color: rgb(230, 59, 125);
+      }
+      .stop-btn:hover {
+        background-color: rgb(177, 44, 95);
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+
+      textarea {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        width: 400px;
+        height: 200px;
+        font-size: 16px;
+        resize: none;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="text" id="input" placeholder="Ask me anything..." />
+    <button onclick="sendRequest()">send</button>
+    <button class="stop-btn" onclick="closeSSE()">stop</button>
+    <br /><br />
+    <textarea
+      id="output"
+      readonly
+      placeholder="Welcome back! What would you like to chat about?"
+    ></textarea>
+    <script>
+      const outputElement = document.getElementById("output");
+      let controller;
+      function sendRequest() {
+        const input = document.getElementById("input").value;
+        controller = new AbortController();
+        fetch("http://localhost:3001/sse", { signal: controller.signal })
+          .then((res) => {
+            if (res.status === 200) {
+              console.log("status 200");
+              return res.body;
+            }
+          })
+          .then((rb) => {
+            const reader = rb?.getReader();
+            let buffer = "";
+
+            reader?.read().then(function process({ done, value }) {
+              if (done) {
+                console.log("status done");
+                return;
+              }
+
+              const message = new TextDecoder("utf-8").decode(value);
+              buffer += message;
+              const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
+
+              lines.forEach((line) => {
+                if (line) {
+                  const fields = line.split(":");
+                  const lineValue = fields[1].substr(1);
+                  outputElement.innerHTML += JSON.parse(lineValue);
+                }
+              });
+              return reader?.read().then(process);
+            });
+          })
+          .catch((e) => {
+            console.log("status error");
+          });
+      }
+
+      function closeSSE() {
+        if (controller) {
+          controller.abort();
+          controller = undefined;
+          outputElement.innerHTML += `\n连接关闭\n`;
+        }
+      }
+    </script>
+  </body>
+</html>
